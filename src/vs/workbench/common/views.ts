@@ -27,7 +27,7 @@ import { mixin } from 'vs/base/common/objects';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDataTransfer } from 'vs/workbench/common/dnd';
+import { IDataTransfer } from 'vs/base/common/dataTransfer';
 
 export const defaultViewIcon = registerIcon('default-view-icon', Codicon.window, localize('defaultViewIcon', 'Default view icon.'));
 
@@ -652,6 +652,8 @@ export interface ITreeView extends IDisposable {
 
 	description: string | undefined;
 
+	badge: IViewBadge | undefined;
+
 	readonly visible: boolean;
 
 	readonly onDidExpandItem: Event<ITreeItem>;
@@ -854,4 +856,9 @@ export interface IViewPaneContainer {
 	getView(viewId: string): IView | undefined;
 	toggleViewVisibility(viewId: string): void;
 	saveState(): void;
+}
+
+export interface IViewBadge {
+	readonly tooltip: string;
+	readonly value: number;
 }

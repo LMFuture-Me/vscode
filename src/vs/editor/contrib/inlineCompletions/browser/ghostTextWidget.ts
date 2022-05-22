@@ -14,7 +14,7 @@ import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { IModelDeltaDecoration, PositionAffinity } from 'vs/editor/common/model';
+import { IModelDeltaDecoration, InjectedTextCursorStops, PositionAffinity } from 'vs/editor/common/model';
 import { ILanguageIdCodec } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ghostTextBackground, ghostTextBorder, ghostTextForeground } from 'vs/editor/common/core/editorColorRegistry';
@@ -81,7 +81,7 @@ export class GhostTextWidget extends Disposable {
 		if (!this.editor.hasModel() || !ghostText || this.disposed) {
 			this.partsWidget.clear();
 			this.additionalLinesWidget.clear();
-			this.replacementDecoration.setDecorations([]);
+			this.replacementDecoration.clear();
 			return;
 		}
 
@@ -211,10 +211,18 @@ class DisposableDecorations {
 	}
 
 	public setDecorations(decorations: IModelDeltaDecoration[]): void {
-		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, decorations);
+		// Using change decorations ensures that we update the id's before some event handler is called.
+		this.editor.changeDecorations(accessor => {
+			this.decorationIds = accessor.deltaDecorations(this.decorationIds, decorations);
+		});
 	}
+
+	public clear(): void {
+		this.setDecorations([]);
+	}
+
 	public dispose(): void {
-		this.editor.deltaDecorations(this.decorationIds, []);
+		this.clear();
 	}
 }
 
@@ -231,7 +239,6 @@ interface InsertedInlineText {
 
 class DecorationsWidget implements IDisposable {
 	private decorationIds: string[] = [];
-	private disposableStore: DisposableStore = new DisposableStore();
 
 	constructor(
 		private readonly editor: ICodeEditor
@@ -240,17 +247,16 @@ class DecorationsWidget implements IDisposable {
 
 	public dispose(): void {
 		this.clear();
-		this.disposableStore.dispose();
 	}
 
 	public clear(): void {
-		this.editor.deltaDecorations(this.decorationIds, []);
-		this.disposableStore.clear();
+		// Using change decorations ensures that we update the id's before some event handler is called.
+		this.editor.changeDecorations(accessor => {
+			this.decorationIds = accessor.deltaDecorations(this.decorationIds, []);
+		});
 	}
 
 	public setParts(lineNumber: number, parts: InsertedInlineText[], hiddenText?: HiddenText): void {
-		this.disposableStore.clear();
-
 		const textModel = this.editor.getModel();
 		if (!textModel) {
 			return;
@@ -262,21 +268,24 @@ class DecorationsWidget implements IDisposable {
 				range: Range.fromPositions(new Position(lineNumber, hiddenText.column), new Position(lineNumber, hiddenText.column + hiddenText.length)),
 				options: {
 					inlineClassName: 'ghost-text-hidden',
-					description: 'ghost-text-hidden'
+					description: 'ghost-text-hidden',
 				}
 			});
 		}
 
-		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, parts.map<IModelDeltaDecoration>(p => {
-			return ({
-				range: Range.fromPositions(new Position(lineNumber, p.column)),
-				options: {
-					description: 'ghost-text',
-					after: { content: p.text, inlineClassName: p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration' },
-					showIfCollapsed: true,
-				}
-			});
-		}).concat(hiddenTextDecorations));
+		// Using change decorations ensures that we update the id's before some event handler is called.
+		this.editor.changeDecorations(accessor => {
+			this.decorationIds = accessor.deltaDecorations(this.decorationIds, parts.map<IModelDeltaDecoration>(p => {
+				return ({
+					range: Range.fromPositions(new Position(lineNumber, p.column)),
+					options: {
+						description: 'ghost-text',
+						after: { content: p.text, inlineClassName: p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration', cursorStops: InjectedTextCursorStops.Left },
+						showIfCollapsed: true,
+					}
+				});
+			}).concat(hiddenTextDecorations));
+		});
 	}
 }
 

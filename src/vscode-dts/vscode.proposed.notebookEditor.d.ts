@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	// https://github.com/microsoft/vscode/issues/106744
+	// https://github.com/microsoft/vscode/issues/149271
 
 	/**
 	 * Represents a notebook editor that is attached to a {@link NotebookDocument notebook}.
@@ -39,21 +39,37 @@ declare module 'vscode' {
 	export interface NotebookEditor {
 		/**
 		 * The document associated with this notebook editor.
+		 *
+		 * @deprecated Use {@linkcode NotebookEditor.notebook} instead.
 		 */
-		//todo@api rename to notebook?
 		readonly document: NotebookDocument;
 
 		/**
-		 * The selections on this notebook editor.
+		 * The {@link NotebookDocument notebook document} associated with this notebook editor.
+		 */
+		readonly notebook: NotebookDocument;
+
+		/**
+		 * The primary selection in this notebook editor.
+		 */
+		selection: NotebookRange;
+
+		/**
+		 * All selections in this notebook editor.
 		 *
 		 * The primary selection (or focused range) is `selections[0]`. When the document has no cells, the primary selection is empty `{ start: 0, end: 0 }`;
 		 */
-		selections: NotebookRange[];
+		selections: readonly NotebookRange[];
 
 		/**
 		 * The current visible ranges in the editor (vertically).
 		 */
-		readonly visibleRanges: NotebookRange[];
+		readonly visibleRanges: readonly NotebookRange[];
+
+		/**
+		 * The column in which this editor shows.
+		 */
+		readonly viewColumn?: ViewColumn;
 
 		/**
 		 * Scroll as indicated by `revealType` in order to reveal the given range.
@@ -62,113 +78,129 @@ declare module 'vscode' {
 		 * @param revealType The scrolling strategy for revealing `range`.
 		 */
 		revealRange(range: NotebookRange, revealType?: NotebookEditorRevealType): void;
-
-		/**
-		 * The column in which this editor shows.
-		 */
-		readonly viewColumn?: ViewColumn;
 	}
 
-	/** @deprecated */
-	export interface NotebookDocumentMetadataChangeEvent {
-		/**
-		 * The {@link NotebookDocument notebook document} for which the document metadata have changed.
-		 */
-		//todo@API rename to notebook?
-		readonly document: NotebookDocument;
-	}
-
-	/** @deprecated */
-	export interface NotebookCellsChangeData {
-		readonly start: number;
-		// todo@API end? Use NotebookCellRange instead?
-		readonly deletedCount: number;
-		// todo@API removedCells, deletedCells?
-		readonly deletedItems: NotebookCell[];
-		// todo@API addedCells, insertedCells, newCells?
-		readonly items: NotebookCell[];
-	}
-
-	/** @deprecated */
-	export interface NotebookCellsChangeEvent {
-		/**
-		 * The {@link NotebookDocument notebook document} for which the cells have changed.
-		 */
-		//todo@API rename to notebook?
-		readonly document: NotebookDocument;
-		readonly changes: ReadonlyArray<NotebookCellsChangeData>;
-	}
-
-	/** @deprecated */
-	export interface NotebookCellOutputsChangeEvent {
-		/**
-		 * The {@link NotebookDocument notebook document} for which the cell outputs have changed.
-		 */
-		//todo@API remove? use cell.notebook instead?
-		readonly document: NotebookDocument;
-		// NotebookCellOutputsChangeEvent.cells vs NotebookCellMetadataChangeEvent.cell
-		readonly cells: NotebookCell[];
-	}
-
-	/** @deprecated */
-	export interface NotebookCellMetadataChangeEvent {
-		/**
-		 * The {@link NotebookDocument notebook document} for which the cell metadata have changed.
-		 */
-		//todo@API remove? use cell.notebook instead?
-		readonly document: NotebookDocument;
-		// NotebookCellOutputsChangeEvent.cells vs NotebookCellMetadataChangeEvent.cell
-		readonly cell: NotebookCell;
-	}
-
+	/**
+	 * Represents an event describing the change in a {@link NotebookEditor.selections notebook editor's selections}.
+	 */
 	export interface NotebookEditorSelectionChangeEvent {
 		/**
 		 * The {@link NotebookEditor notebook editor} for which the selections have changed.
 		 */
 		readonly notebookEditor: NotebookEditor;
-		readonly selections: ReadonlyArray<NotebookRange>;
+
+		/**
+		 * The new value for the {@link NotebookEditor.selections notebook editor's selections}.
+		 */
+		readonly selections: readonly NotebookRange[];
 	}
 
+	/**
+	 * Represents an event describing the change in a {@link NotebookEditor.visibleRanges notebook editor's visibleRanges}.
+	 */
 	export interface NotebookEditorVisibleRangesChangeEvent {
 		/**
 		 * The {@link NotebookEditor notebook editor} for which the visible ranges have changed.
 		 */
 		readonly notebookEditor: NotebookEditor;
-		readonly visibleRanges: ReadonlyArray<NotebookRange>;
+
+		/**
+		 * The new value for the {@link NotebookEditor.visibleRanges notebook editor's visibleRanges}.
+		 */
+		readonly visibleRanges: readonly NotebookRange[];
 	}
 
-
+	/**
+	 * Represents options to configure the behavior of showing a {@link NotebookDocument notebook document} in an {@link NotebookEditor notebook editor}.
+	 */
 	export interface NotebookDocumentShowOptions {
-		viewColumn?: ViewColumn;
-		preserveFocus?: boolean;
-		preview?: boolean;
-		selections?: NotebookRange[];
-	}
+		/**
+		 * An optional view column in which the {@link NotebookEditor notebook editor} should be shown.
+		 * The default is the {@link ViewColumn.Active active}, other values are adjusted to
+		 * be `Min(column, columnCount + 1)`, the {@link ViewColumn.Active active}-column is
+		 * not adjusted. Use {@linkcode ViewColumn.Beside} to open the
+		 * editor to the side of the currently active one.
+		 */
+		readonly viewColumn?: ViewColumn;
 
-	export namespace notebooks {
-		/** @deprecated */
-		export const onDidSaveNotebookDocument: Event<NotebookDocument>;
-		/** @deprecated */
-		export const onDidChangeNotebookDocumentMetadata: Event<NotebookDocumentMetadataChangeEvent>;
-		/** @deprecated */
-		export const onDidChangeNotebookCells: Event<NotebookCellsChangeEvent>;
-		// todo@API add onDidChangeNotebookCellOutputs
-		/** @deprecated */
-		export const onDidChangeCellOutputs: Event<NotebookCellOutputsChangeEvent>;
-		// todo@API add onDidChangeNotebookCellMetadata
-		/** @deprecated */
-		export const onDidChangeCellMetadata: Event<NotebookCellMetadataChangeEvent>;
+		/**
+		 * An optional flag that when `true` will stop the {@link NotebookEditor notebook editor} from taking focus.
+		 */
+		readonly preserveFocus?: boolean;
+
+		/**
+		 * An optional flag that controls if an {@link NotebookEditor notebook editor}-tab shows as preview. Preview tabs will
+		 * be replaced and reused until set to stay - either explicitly or through editing. The default behaviour depends
+		 * on the `workbench.editor.enablePreview`-setting.
+		 */
+		readonly preview?: boolean;
+
+		/**
+		 * An optional selection to apply for the document in the {@link NotebookEditor notebook editor}.
+		 */
+		readonly selections?: readonly NotebookRange[];
 	}
 
 	export namespace window {
-		export const visibleNotebookEditors: NotebookEditor[];
-		export const onDidChangeVisibleNotebookEditors: Event<NotebookEditor[]>;
+		/**
+		 * The currently visible {@link NotebookEditor notebook editors} or an empty array.
+		 */
+		export const visibleNotebookEditors: readonly NotebookEditor[];
+
+		/**
+		 * An {@link Event} which fires when the {@link window.visibleNotebookEditors visible notebook editors}
+		 * has changed.
+		 */
+		export const onDidChangeVisibleNotebookEditors: Event<readonly NotebookEditor[]>;
+
+		/**
+		 * The currently active {@link NotebookEditor notebook editor} or `undefined`. The active editor is the one
+		 * that currently has focus or, when none has focus, the one that has changed
+		 * input most recently.
+		 */
 		export const activeNotebookEditor: NotebookEditor | undefined;
+
+		/**
+		 * An {@link Event} which fires when the {@link window.activeNotebookEditor active notebook editor}
+		 * has changed. *Note* that the event also fires when the active editor changes
+		 * to `undefined`.
+		 */
 		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
+
+		/**
+		 * An {@link Event} which fires when the {@link NotebookEditor.selections notebook editor selections}
+		 * have changed.
+		 */
 		export const onDidChangeNotebookEditorSelection: Event<NotebookEditorSelectionChangeEvent>;
+
+		/**
+		 * An {@link Event} which fires when the {@link NotebookEditor.visibleRanges notebook editor visible ranges}
+		 * have changed.
+		 */
 		export const onDidChangeNotebookEditorVisibleRanges: Event<NotebookEditorVisibleRangesChangeEvent>;
 
-		export function showNotebookDocument(uri: Uri, options?: NotebookDocumentShowOptions): Thenable<NotebookEditor>;
+		/**
+		 * Show the given {@link NotebookDocument} in a {@link NotebookEditor notebook editor}.
+		 *
+		 * @param document A text document to be shown.
+		 * @param options {@link NotebookDocumentShowOptions Editor options} to configure the behavior of showing the {@link NotebookEditor notebook editor}.
+		 *
+		 * @return A promise that resolves to an {@link NotebookEditor notebook editor}.
+		 */
 		export function showNotebookDocument(document: NotebookDocument, options?: NotebookDocumentShowOptions): Thenable<NotebookEditor>;
+
+		/**
+		 * A short-hand for `openNotebookDocument(uri).then(document => showNotebookDocument(document, options))`.
+		 *
+		 * @deprecated Will not be finalized.
+		 *
+		 * @see {@link workspace.openNotebookDocument}
+		 *
+		 * @param uri The resource to open.
+		 * @param options {@link NotebookDocumentShowOptions Editor options} to configure the behavior of showing the {@link NotebookEditor notebook editor}.
+		 *
+		 * @return A promise that resolves to an {@link NotebookEditor notebook editor}.
+		 */
+		export function showNotebookDocument(uri: Uri, options?: NotebookDocumentShowOptions): Thenable<NotebookEditor>;
 	}
 }

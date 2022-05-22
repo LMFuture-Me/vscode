@@ -176,10 +176,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				}
 			});
 			this._previousFocusedElements = e.elements;
-
-			if (document.activeElement && document.activeElement.classList.contains('webview')) {
-				super.domFocus();
-			}
 		}));
 
 		const notebookEditorCursorAtBoundaryContext = NOTEBOOK_EDITOR_CURSOR_BOUNDARY.bindTo(contextKeyService);
@@ -604,15 +600,16 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		return reduceCellRanges(ranges);
 	}
 
-	getVisibleRangesPlusViewportBelow() {
+	getVisibleRangesPlusViewportAboveAndBelow() {
 		if (this.view.length <= 0) {
 			return [];
 		}
 
-		const bottom = clamp(this.getViewScrollBottom() + this.renderHeight, 0, this.scrollHeight);
-		const topViewIndex = this.firstVisibleIndex;
+		const top = Math.max(this.getViewScrollTop() - this.renderHeight, 0);
+		const topViewIndex = this.view.indexAt(top);
 		const topElement = this.view.element(topViewIndex);
 		const topModelIndex = this._viewModel!.getCellIndex(topElement);
+		const bottom = clamp(this.getViewScrollBottom() + this.renderHeight, 0, this.scrollHeight);
 		const bottomViewIndex = clamp(this.view.indexAt(bottom), 0, this.view.length - 1);
 		const bottomElement = this.view.element(bottomViewIndex);
 		const bottomModelIndex = this._viewModel!.getCellIndex(bottomElement);
@@ -1252,8 +1249,20 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				this.view.setScrollTop(this.view.elementTop(viewIndex));
 				break;
 			case CellRevealPosition.Center:
-				this.view.setScrollTop(elementTop - this.view.renderHeight / 2);
-				this.view.setScrollTop(this.view.elementTop(viewIndex) - this.view.renderHeight / 2);
+				{
+					// reveal the cell top in the viewport center initially
+					this.view.setScrollTop(elementTop - this.view.renderHeight / 2);
+					// cell rendered already, we now have a more accurate cell height
+					const newElementTop = this.view.elementTop(viewIndex);
+					const newElementHeight = this.view.elementHeight(viewIndex);
+					const renderHeight = this.getViewScrollBottom() - this.getViewScrollTop();
+					if (newElementHeight >= renderHeight) {
+						// cell is larger than viewport, reveal top
+						this.view.setScrollTop(newElementTop);
+					} else {
+						this.view.setScrollTop(newElementTop + (newElementHeight / 2) - (renderHeight / 2));
+					}
+				}
 				break;
 			case CellRevealPosition.Bottom:
 				this.view.setScrollTop(this.scrollTop + (elementBottom - wrapperBottom));
@@ -1576,8 +1585,8 @@ export class ListViewInfoAccessor extends Disposable {
 		return this.list.setHiddenAreas(_ranges, true);
 	}
 
-	getVisibleRangesPlusViewportBelow(): ICellRange[] {
-		return this.list?.getVisibleRangesPlusViewportBelow() ?? [];
+	getVisibleRangesPlusViewportAboveAndBelow(): ICellRange[] {
+		return this.list?.getVisibleRangesPlusViewportAboveAndBelow() ?? [];
 	}
 
 	triggerScroll(event: IMouseWheelEvent) {

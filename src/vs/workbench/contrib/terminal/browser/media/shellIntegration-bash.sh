@@ -10,6 +10,10 @@ if [ -z "$VSCODE_SHELL_LOGIN" ]; then
 else
 	# Imitate -l because --init-file doesn't support it:
 	# run the first of these files that exists
+	if [ -f /etc/profile ]; then
+		. /etc/profile
+	fi
+	# exceute the first that exists
 	if [ -f ~/.bash_profile ]; then
 		. ~/.bash_profile
 	elif [ -f ~/.bash_login ]; then
@@ -21,49 +25,47 @@ else
 fi
 
 if [[ "$PROMPT_COMMAND" =~ .*(' '.*\;)|(\;.*' ').* ]]; then
-	echo -e "\033[1;33mShell integration cannot be activated due to complex PROMPT_COMMAND: $PROMPT_COMMAND\033[0m"
-	VSCODE_SHELL_HIDE_WELCOME=""
-	return;
+	VSCODE_SHELL_INTEGRATION=""
+	builtin return
 fi
 
 if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
-	echo -e "\033[1;33mShell integration was disabled by the shell\033[0m"
-	return
+	builtin return
 fi
 
 __vsc_in_command_execution="1"
 __vsc_last_history_id=$(history 1 | awk '{print $1;}')
 
 __vsc_prompt_start() {
-	printf "\033]633;A\007"
+	builtin printf "\033]633;A\007"
 }
 
 __vsc_prompt_end() {
-	printf "\033]633;B\007"
+	builtin printf "\033]633;B\007"
 }
 
 __vsc_update_cwd() {
-	printf "\033]633;P;Cwd=%s\007" "$PWD"
+	builtin printf "\033]633;P;Cwd=%s\007" "$PWD"
 }
 
 __vsc_command_output_start() {
-	printf "\033]633;C\007"
+	builtin printf "\033]633;C\007"
 }
 
 __vsc_continuation_start() {
-	printf "\033]633;F\007"
+	builtin printf "\033]633;F\007"
 }
 
 __vsc_continuation_end() {
-	printf "\033]633;G\007"
+	builtin printf "\033]633;G\007"
 }
 
 __vsc_command_complete() {
-	local __vsc_history_id=$(history 1 | awk '{print $1;}')
+	local __vsc_history_id=$(builtin history 1 | awk '{print $1;}')
 	if [[ "$__vsc_history_id" == "$__vsc_last_history_id" ]]; then
-		printf "\033]633;D\007"
+		builtin printf "\033]633;D\007"
 	else
-		printf "\033]633;D;%s\007" "$__vsc_status"
+		builtin printf "\033]633;D;%s\007" "$__vsc_status"
 		__vsc_last_history_id=$__vsc_history_id
 	fi
 	__vsc_update_cwd
@@ -85,7 +87,16 @@ __vsc_precmd() {
 		__vsc_update_prompt
 	fi
 }
+
+# capture any debug trap so it is not overwritten
+__vsc_original_trap="$(trap -p DEBUG)"
+if [[ -n "$__vsc_original_trap" ]]; then
+	__vsc_original_trap=${__vsc_original_trap#'trap -- '*}
+	__vsc_original_trap=${__vsc_original_trap%'DEBUG'}
+fi
+
 __vsc_preexec() {
+	eval ${__vsc_original_trap}
 	PS1="$__vsc_prior_prompt"
 	if [ -z "${__vsc_in_command_execution-}" ]; then
 		__vsc_in_command_execution="1"
@@ -96,17 +107,26 @@ __vsc_preexec() {
 __vsc_update_prompt
 
 __vsc_prompt_cmd_original() {
+	if [[ ${IFS+set} ]]; then
+		__vsc_original_ifs="$IFS"
+	fi
 	__vsc_status="$?"
 	if [[ "$__vsc_original_prompt_command" =~ .+\;.+ ]]; then
 		IFS=';'
 	else
 		IFS=' '
 	fi
-	read -ra ADDR <<<"$__vsc_original_prompt_command"
+	builtin read -ra ADDR <<<"$__vsc_original_prompt_command"
+	if [[ ${__vsc_original_ifs+set} ]]; then
+		IFS="$__vsc_original_ifs"
+		unset __vsc_original_ifs
+	else
+		unset IFS
+	fi
 	for ((i = 0; i < ${#ADDR[@]}; i++)); do
-		eval ${ADDR[i]}
+		# unset IFS
+		builtin eval ${ADDR[i]}
 	done
-	IFS=''
 	__vsc_precmd
 }
 
@@ -130,8 +150,3 @@ else
 fi
 
 trap '__vsc_preexec' DEBUG
-if [ -z "$VSCODE_SHELL_HIDE_WELCOME" ]; then
-	echo -e "\033[1;32mShell integration activated\033[0m"
-else
-	VSCODE_SHELL_HIDE_WELCOME=""
-fi
